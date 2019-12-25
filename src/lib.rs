@@ -94,7 +94,7 @@ pub struct LepTess {
 impl LepTess {
     pub fn new(data_path: Option<&str>, lang: &str) -> Result<LepTess, tesseract::TessInitError> {
         Ok(LepTess {
-            tess_api: tesseract::TessApi::new(data_path, lang)?,
+            tess_api: tesseract::TessApi::new()?,
         })
     }
 
@@ -153,9 +153,6 @@ impl LepTess {
     /// lt.set_image("./tests/di.png");
     /// println!("{}", lt.get_utf8_text().unwrap());
     /// ```
-    pub fn get_utf8_text(&self) -> Result<String, std::str::Utf8Error> {
-        self.tess_api.get_utf8_text()
-    }
 
     pub fn mean_text_conf(&self) -> i32 {
         self.tess_api.mean_text_conf()
@@ -163,32 +160,5 @@ impl LepTess {
 
     pub fn get_regions(&self) -> Option<leptonica::Boxa> {
         self.tess_api.get_regions()
-    }
-
-    /// Get the given level kind of components (block, textline, word etc.) as a leptonica-style
-    /// Boxa, in reading order.If text_only is true, then only text components are returned.
-    ///
-    /// # Example
-    ///
-    /// ## Get word bounding boxes
-    ///
-    /// ```no_run
-    /// let mut lt = leptess::LepTess::new(None, "eng").unwrap();
-    /// lt.set_image("./tests/di.png");
-    /// let boxes = lt.get_component_boxes(
-    ///     leptess::capi::TessPageIteratorLevel_RIL_WORD,
-    ///     true,
-    /// ).unwrap();
-    ///
-    /// for b in &boxes {
-    ///     println!("{:?}", b.get_val());
-    /// }
-    /// ```
-    pub fn get_component_boxes(
-        &self,
-        level: capi::TessPageIteratorLevel,
-        text_only: bool,
-    ) -> Option<leptonica::Boxa> {
-        self.tess_api.get_component_images(level, text_only)
     }
 }
