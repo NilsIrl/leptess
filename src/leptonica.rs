@@ -1,5 +1,3 @@
-//! Low level wrapper for Leptonica C API
-
 use super::capi;
 
 use std::ffi::CString;
