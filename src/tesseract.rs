@@ -84,13 +84,6 @@ impl TessApi {
         unsafe { capi::TessBaseAPIRecognize(self.raw, ptr::null_mut()) }
     }
 
-    pub fn set_rectangle(&mut self, b: &leptonica::Box) {
-        let v = b.get_val();
-        unsafe {
-            capi::TessBaseAPISetRectangle(self.raw, v.x, v.y, v.w, v.h);
-        }
-    }
-
     pub fn mean_text_conf(&self) -> i32 {
         unsafe { capi::TessBaseAPIMeanTextConf(self.raw) }
     }
@@ -115,6 +108,18 @@ pub enum PageIteratorLevel {
 }
 
 impl TessApiImageSet {
+    pub fn set_rectangle(&self, rectangle: leptonica::Box) {
+        unsafe {
+            capi::TessBaseAPISetRectangle(
+                self.raw,
+                rectangle.x(),
+                rectangle.y(),
+                rectangle.w(),
+                rectangle.h(),
+            )
+        }
+    }
+
     pub fn get_utf8_text(&self) -> Result<String, std::str::Utf8Error> {
         unsafe {
             let re: Result<String, std::str::Utf8Error>;

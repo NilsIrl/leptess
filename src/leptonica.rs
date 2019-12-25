@@ -39,14 +39,6 @@ pub fn pix_read(path: &Path) -> Option<Pix> {
     }
 }
 
-#[derive(Debug, PartialEq)]
-pub struct BoxVal {
-    pub x: i32,
-    pub y: i32,
-    pub w: i32,
-    pub h: i32,
-}
-
 pub struct Box {
     pub raw: *mut capi::Box,
 }
@@ -60,16 +52,21 @@ impl Drop for Box {
 }
 
 impl Box {
-    pub fn get_val(&self) -> BoxVal {
-        unsafe {
-            let v = *self.raw;
-            BoxVal {
-                x: v.x,
-                y: v.y,
-                w: v.w,
-                h: v.h,
-            }
-        }
+    /// The x position the box
+    pub fn x(&self) -> i32 {
+        unsafe { (*self.raw).x }
+    }
+    /// The y position of the box
+    pub fn y(&self) -> i32 {
+        unsafe { (*self.raw).x }
+    }
+    /// The width of the box
+    pub fn w(&self) -> i32 {
+        unsafe { (*self.raw).x }
+    }
+    /// The height of the box
+    pub fn h(&self) -> i32 {
+        unsafe { (*self.raw).x }
     }
 }
 
