@@ -66,7 +66,7 @@ impl TessApi {
     }
 
     pub fn set_image(self, img: &leptonica::Pix) -> TessApiImageSet {
-        unsafe { capi::TessBaseAPISetImage2(self.raw, img.raw as *mut capi::Pix) }
+        unsafe { capi::TessBaseAPISetImage2(self.raw, img.raw) }
         TessApiImageSet { raw: self.raw }
     }
 
