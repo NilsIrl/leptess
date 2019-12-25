@@ -24,7 +24,10 @@ impl std::fmt::Display for TessInitError {
 #[derive(Debug, PartialEq)]
 pub struct TessApi {
     pub raw: *mut capi::TessBaseAPI,
-    data_path_cptr: *mut c_char,
+}
+
+pub struct TessApiImageSet {
+    pub raw: *mut capi::TessBaseAPI,
 }
 
 impl Drop for TessApi {
@@ -32,42 +35,30 @@ impl Drop for TessApi {
         unsafe {
             capi::TessBaseAPIEnd(self.raw);
             capi::TessBaseAPIDelete(self.raw);
+        }
+    }
+}
 
-            if !self.data_path_cptr.is_null() {
-                // free data_path_cptr, drop trait will take care of it
-                CString::from_raw(self.data_path_cptr);
-            }
+impl Drop for TessApiImageSet {
+    fn drop(&mut self) {
+        unsafe {
+            capi::TessBaseAPIEnd(self.raw);
+            capi::TessBaseAPIDelete(self.raw);
         }
     }
 }
 
 impl TessApi {
-    pub fn new<'a>(data_path: Option<&'a str>, lang: &'a str) -> Result<TessApi, TessInitError> {
-        let data_path_cptr;
-        let data_path_cstr;
-        match data_path {
-            Some(dstr) => {
-                data_path_cstr = CString::new(dstr).unwrap();
-                data_path_cptr = data_path_cstr.into_raw();
-            }
-            None => {
-                data_path_cptr = ptr::null_mut();
-            }
-        }
-
+    pub fn new() -> Result<TessApi, TessInitError> {
         let api = TessApi {
             raw: unsafe { capi::TessBaseAPICreate() },
-            data_path_cptr: data_path_cptr,
         };
 
         unsafe {
-            let re = capi::TessBaseAPIInit3(
-                api.raw,
-                api.data_path_cptr,
-                CString::new(lang).unwrap().as_ptr(),
-            );
+            let re = capi::TessBaseAPIInit3(api.raw, ptr::null(), ptr::null());
 
             if re == 0 {
+                // TODO: https://github.com/tesseract-ocr/tesseract/issues/2832
                 return Ok(api);
             } else {
                 return Err(TessInitError { code: re });
@@ -75,8 +66,9 @@ impl TessApi {
         }
     }
 
-    pub fn set_image(&mut self, img: &leptonica::Pix) {
+    pub fn set_image(mut self, img: &leptonica::Pix) -> TessApiImageSet {
         unsafe { capi::TessBaseAPISetImage2(self.raw, img.raw as *mut capi::Pix) }
+        TessApiImageSet { raw: self.raw }
     }
 
     pub fn get_source_y_resolution(&mut self) -> i32 {
@@ -100,6 +92,30 @@ impl TessApi {
         }
     }
 
+    pub fn mean_text_conf(&self) -> i32 {
+        unsafe { capi::TessBaseAPIMeanTextConf(self.raw) }
+    }
+
+    pub fn get_regions(&self) -> Option<leptonica::Boxa> {
+        unsafe {
+            let boxes = capi::TessBaseAPIGetRegions(self.raw, ptr::null_mut());
+            if boxes.is_null() {
+                return None;
+            }
+            return Some(leptonica::Boxa { raw: boxes });
+        }
+    }
+}
+
+enum PageIteratorLevel {
+    Block,
+    Para,
+    Textline,
+    Word,
+    Symbol,
+}
+
+impl TessApiImageSet {
     pub fn get_utf8_text(&self) -> Result<String, std::str::Utf8Error> {
         unsafe {
             let re: Result<String, std::str::Utf8Error>;
@@ -117,27 +133,14 @@ impl TessApi {
         }
     }
 
-    pub fn mean_text_conf(&self) -> i32 {
-        unsafe { capi::TessBaseAPIMeanTextConf(self.raw) }
-    }
-
-    pub fn get_regions(&self) -> Option<leptonica::Boxa> {
-        unsafe {
-            let boxes = capi::TessBaseAPIGetRegions(self.raw, ptr::null_mut());
-            if boxes.is_null() {
-                return None;
-            }
-            return Some(leptonica::Boxa { raw: boxes });
-        }
-    }
-
     /// Get the given level kind of components (block, textline, word etc.) as a leptonica-style
-    /// Boxa, in reading order.If text_only is true, then only text components are returned.
+    /// Boxa, in reading order. If text_only is true, then only text components are returned.
+    /// https://tesseract-ocr.github.io/4.0.0/a01625.html#gad74ae1266a5299734ec6f5225b6cb5c1
     pub fn get_component_images(
         &self,
-        level: capi::TessPageIteratorLevel,
+        level: PageIteratorLevel,
         text_only: bool,
-    ) -> Option<leptonica::Boxa> {
+    ) -> leptonica::Boxa {
         let mut text_only_val: i32 = 0;
         if text_only {
             text_only_val = 1;
@@ -146,16 +149,22 @@ impl TessApi {
         unsafe {
             let boxes = capi::TessBaseAPIGetComponentImages(
                 self.raw,
-                level,
+                match level {
+                    Block => capi::TessPageIteratorLevel_RIL_BLOCK,
+                    Para => capi::TessPageIteratorLevel_RIL_PARA,
+                    Textline => capi::TessPageIteratorLevel_RIL_TEXTLINE,
+                    Word => capi::TessPageIteratorLevel_RIL_WORD,
+                    Symbol => capi::TessPageIteratorLevel_RIL_SYMBOL,
+                },
                 text_only_val,
                 ptr::null_mut(),
                 ptr::null_mut(),
             );
 
             if boxes.is_null() {
-                return None;
+                unreachable!();
             }
-            return Some(leptonica::Boxa { raw: boxes });
+            return leptonica::Boxa { raw: boxes };
         }
     }
 }
