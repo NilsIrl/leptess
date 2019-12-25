@@ -53,7 +53,9 @@ pub struct Box {
 
 impl Drop for Box {
     fn drop(&mut self) {
-        capi::boxDestroy(&mut self.raw);
+        unsafe {
+            capi::boxDestroy(&mut self.raw);
+        }
     }
 }
 
@@ -88,7 +90,9 @@ pub struct Boxa {
 
 impl Drop for Boxa {
     fn drop(&mut self) {
-        capi::boxaDestroy(&mut self.raw);
+        unsafe {
+            capi::boxaDestroy(&mut self.raw);
+        }
     }
 }
 
