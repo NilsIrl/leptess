@@ -120,18 +120,10 @@ impl TessApiImageSet {
         }
     }
 
-    pub fn get_utf8_text(&self) -> Result<String, std::str::Utf8Error> {
+    pub fn get_utf8_text(&self) -> String {
         unsafe {
-            let re: Result<String, std::str::Utf8Error>;
             let sptr = capi::TessBaseAPIGetUTF8Text(self.raw);
-            match CStr::from_ptr(sptr).to_str() {
-                Ok(s) => {
-                    re = Ok(s.to_string());
-                }
-                Err(e) => {
-                    re = Err(e);
-                }
-            }
+            let re = CStr::from_ptr(sptr).to_str().unwrap().to_string();
             capi::TessDeleteText(sptr);
             return re;
         }
