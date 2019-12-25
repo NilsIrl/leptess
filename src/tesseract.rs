@@ -120,7 +120,7 @@ impl TessApiImageSet {
         }
     }
 
-    pub fn get_utf8_text(&self) -> String {
+    pub fn get_text(&self) -> String {
         unsafe {
             let sptr = capi::TessBaseAPIGetUTF8Text(self.raw);
             let re = CStr::from_ptr(sptr).to_str().unwrap().to_string();
@@ -137,11 +137,6 @@ impl TessApiImageSet {
         level: PageIteratorLevel,
         text_only: bool,
     ) -> leptonica::Boxes {
-        let mut text_only_val: i32 = 0;
-        if text_only {
-            text_only_val = 1;
-        }
-
         unsafe {
             let boxes = capi::TessBaseAPIGetComponentImages(
                 self.raw,
@@ -152,7 +147,7 @@ impl TessApiImageSet {
                     PageIteratorLevel::Word => capi::TessPageIteratorLevel_RIL_WORD,
                     PageIteratorLevel::Symbol => capi::TessPageIteratorLevel_RIL_SYMBOL,
                 },
-                text_only_val,
+                if text_only { 1 } else { 0 },
                 ptr::null_mut(),
                 ptr::null_mut(),
             );
