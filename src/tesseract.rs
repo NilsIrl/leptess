@@ -3,8 +3,7 @@
 use super::capi;
 use super::leptonica;
 
-use std::ffi::{CStr, CString};
-use std::os::raw::c_char;
+use std::ffi::CStr;
 use std::ptr;
 
 pub use capi::kMaxCredibleResolution as MAX_CREDIBLE_RESOLUTION;
@@ -66,7 +65,7 @@ impl TessApi {
         }
     }
 
-    pub fn set_image(mut self, img: &leptonica::Pix) -> TessApiImageSet {
+    pub fn set_image(self, img: &leptonica::Pix) -> TessApiImageSet {
         unsafe { capi::TessBaseAPISetImage2(self.raw, img.raw as *mut capi::Pix) }
         TessApiImageSet { raw: self.raw }
     }
@@ -96,13 +95,13 @@ impl TessApi {
         unsafe { capi::TessBaseAPIMeanTextConf(self.raw) }
     }
 
-    pub fn get_regions(&self) -> Option<leptonica::Boxa> {
+    pub fn get_regions(&self) -> Option<leptonica::Boxes> {
         unsafe {
             let boxes = capi::TessBaseAPIGetRegions(self.raw, ptr::null_mut());
             if boxes.is_null() {
                 return None;
             }
-            return Some(leptonica::Boxa { raw: boxes });
+            return Some(leptonica::Boxes { raw: boxes });
         }
     }
 }
@@ -140,7 +139,7 @@ impl TessApiImageSet {
         &self,
         level: PageIteratorLevel,
         text_only: bool,
-    ) -> leptonica::Boxa {
+    ) -> leptonica::Boxes {
         let mut text_only_val: i32 = 0;
         if text_only {
             text_only_val = 1;
@@ -150,11 +149,11 @@ impl TessApiImageSet {
             let boxes = capi::TessBaseAPIGetComponentImages(
                 self.raw,
                 match level {
-                    Block => capi::TessPageIteratorLevel_RIL_BLOCK,
-                    Para => capi::TessPageIteratorLevel_RIL_PARA,
-                    Textline => capi::TessPageIteratorLevel_RIL_TEXTLINE,
-                    Word => capi::TessPageIteratorLevel_RIL_WORD,
-                    Symbol => capi::TessPageIteratorLevel_RIL_SYMBOL,
+                    PageIteratorLevel::Block => capi::TessPageIteratorLevel_RIL_BLOCK,
+                    PageIteratorLevel::Para => capi::TessPageIteratorLevel_RIL_PARA,
+                    PageIteratorLevel::Textline => capi::TessPageIteratorLevel_RIL_TEXTLINE,
+                    PageIteratorLevel::Word => capi::TessPageIteratorLevel_RIL_WORD,
+                    PageIteratorLevel::Symbol => capi::TessPageIteratorLevel_RIL_SYMBOL,
                 },
                 text_only_val,
                 ptr::null_mut(),
@@ -164,7 +163,7 @@ impl TessApiImageSet {
             if boxes.is_null() {
                 unreachable!();
             }
-            return leptonica::Boxa { raw: boxes };
+            return leptonica::Boxes { raw: boxes };
         }
     }
 }

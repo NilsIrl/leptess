@@ -60,17 +60,6 @@ impl Drop for Box {
 }
 
 impl Box {
-    pub fn new(x: i32, y: i32, w: i32, h: i32) -> Option<Box> {
-        unsafe {
-            let p = capi::boxCreateValid(x, y, w, h);
-            if p.is_null() {
-                None
-            } else {
-                Some(Box { raw: p })
-            }
-        }
-    }
-
     pub fn get_val(&self) -> BoxVal {
         unsafe {
             let v = *self.raw;
@@ -84,11 +73,11 @@ impl Box {
     }
 }
 
-pub struct Boxa {
+pub struct Boxes {
     pub raw: *mut capi::Boxa,
 }
 
-impl Drop for Boxa {
+impl Drop for Boxes {
     fn drop(&mut self) {
         unsafe {
             capi::boxaDestroy(&mut self.raw);
@@ -96,29 +85,30 @@ impl Drop for Boxa {
     }
 }
 
-impl Boxa {
-    pub fn get_n(&self) -> usize {
+impl Boxes {
+    // https://github.com/rust-lang/rfcs/issues/1791
+    pub fn len(&self) -> usize {
         unsafe { (*self.raw).n as usize }
     }
 
-    pub fn get_box(&self, i: usize, flag: u32) -> Option<Box> {
+    pub fn get(&self, index: usize) -> Box {
         unsafe {
-            let b = capi::boxaGetBox(self.raw, i as i32, flag as i32);
+            let b = capi::boxaGetBox(self.raw, index as i32, capi::L_CLONE as i32);
             if b.is_null() {
-                return None;
+                panic!("Found null box");
             }
-            Some(Box { raw: b })
+            Box { raw: b }
         }
     }
 }
 
-impl IntoIterator for Boxa {
+impl IntoIterator for Boxes {
     type Item = Box;
-    type IntoIter = BoxaIterator;
+    type IntoIter = BoxesIterator;
 
     fn into_iter(self) -> Self::IntoIter {
-        let count = self.get_n();
-        BoxaIterator {
+        let count = self.len();
+        BoxesIterator {
             boxa: self,
             index: 0,
             count: count,
@@ -126,13 +116,14 @@ impl IntoIterator for Boxa {
     }
 }
 
-pub struct BoxaIterator {
-    boxa: Boxa,
+// TODO: tesseract offers a direct iterator
+pub struct BoxesIterator {
+    boxa: Boxes,
     index: usize,
     count: usize,
 }
 
-impl Iterator for BoxaIterator {
+impl Iterator for BoxesIterator {
     type Item = Box;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -140,19 +131,19 @@ impl Iterator for BoxaIterator {
             return None;
         }
 
-        let re = self.boxa.get_box(self.index, capi::L_CLONE);
+        let re = self.boxa.get(self.index);
         self.index += 1;
 
-        re
+        Some(re)
     }
 }
 
-impl<'a> IntoIterator for &'a Boxa {
+impl<'a> IntoIterator for &'a Boxes {
     type Item = Box;
     type IntoIter = BoxaRefIterator<'a>;
 
     fn into_iter(self) -> Self::IntoIter {
-        let count = self.get_n();
+        let count = self.len();
         BoxaRefIterator {
             boxa: self,
             index: 0,
@@ -162,7 +153,7 @@ impl<'a> IntoIterator for &'a Boxa {
 }
 
 pub struct BoxaRefIterator<'a> {
-    boxa: &'a Boxa,
+    boxa: &'a Boxes,
     index: usize,
     count: usize,
 }
@@ -175,9 +166,9 @@ impl<'a> Iterator for BoxaRefIterator<'a> {
             return None;
         }
 
-        let re = self.boxa.get_box(self.index, capi::L_CLONE);
+        let re = self.boxa.get(self.index);
         self.index += 1;
 
-        re
+        Some(re)
     }
 }
