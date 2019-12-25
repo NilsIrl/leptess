@@ -107,7 +107,7 @@ impl TessApi {
     }
 }
 
-enum PageIteratorLevel {
+pub enum PageIteratorLevel {
     Block,
     Para,
     Textline,
