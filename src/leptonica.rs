@@ -10,6 +10,20 @@ pub struct Pix {
 }
 
 impl Pix {
+    // TODO: read from std::fs::File
+    pub fn from_path(path: &Path) -> Pix {
+        let s = path.to_str().unwrap();
+
+        unsafe {
+            let pix = capi::pixRead(CString::new(s).unwrap().as_ptr());
+            if pix.is_null() {
+                panic!("Invalid file");
+            }
+
+            return Pix { raw: pix };
+        }
+    }
+
     pub fn get_w(&self) -> u32 {
         unsafe { (*self.raw).w }
     }
@@ -23,19 +37,6 @@ impl Drop for Pix {
         unsafe {
             capi::pixDestroy(&mut self.raw);
         }
-    }
-}
-
-pub fn pix_read(path: &Path) -> Option<Pix> {
-    let s = path.to_str().unwrap();
-
-    unsafe {
-        let pix = capi::pixRead(CString::new(s).unwrap().as_ptr());
-        if pix.is_null() {
-            return None;
-        }
-
-        return Some(Pix { raw: pix });
     }
 }
 
