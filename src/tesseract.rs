@@ -28,6 +28,15 @@ impl TessBaseApiUninitializedPointer {
             raw: unsafe { capi::TessBaseAPICreate() },
         }
     }
+
+    // Return a result instead of panicking if -1 is reachable
+    fn init(&self, datapath: *const i8, language: *const i8) {
+        match unsafe { capi::TessBaseAPIInit3(self.raw, datapath, language) } {
+            0 => (),
+            -1 => panic!("Failed to initialize"),
+            _ => unreachable!(),
+        }
+    }
 }
 
 impl Drop for TessBaseApiUninitializedPointer {
@@ -67,43 +76,52 @@ impl TessBaseApiUnitialized {
     }
 
     pub fn init(self) -> TessBaseApiInitialized {
-        unsafe {
-            capi::TessBaseAPIInit3(self.pointer.raw, std::ptr::null(), std::ptr::null());
-        }
-        Self::create_tess_base_api_initialized(self)
+        self.pointer.init(std::ptr::null(), std::ptr::null());
+        self.create_tess_base_api_initialized()
     }
 
     pub fn init_with_lang(self, language: &str) -> TessBaseApiInitialized {
+        self.pointer.init(
+            std::ptr::null(),
+            std::ffi::CString::new(language).unwrap().as_ptr(),
+        );
+        self.create_tess_base_api_initialized()
+    }
+
+    pub fn init_with_datapath(self, datapath: &std::path::Path) -> TessBaseApiInitialized {
         unsafe {
             capi::TessBaseAPIInit3(
                 self.pointer.raw,
-                std::ptr::null(),
-                std::ffi::CString::new(language).unwrap().as_ptr(),
-            );
-        }
-        Self::create_tess_base_api_initialized(self)
-    }
-
-    pub fn init_with_datapath(self, datapath: std::path::Path) -> TessBaseApiInitialized {
-        unsafe {
-            capi::TessBaseAPIInit3(
-                self.pointer.raw,
-                std::ffi::CString::new(datapath.to_str().unwrap()).as_ptr(),
+                std::ffi::CString::new(datapath.to_str().unwrap())
+                    .unwrap()
+                    .as_ptr(),
                 std::ptr::null(),
             );
         }
-        Self::create_tess_base_api_initialized(self)
+        self.create_tess_base_api_initialized()
     }
 
-    fn create_tess_base_api_initialized(
-        tess_base_api_uninitialized: TessBaseApiUnitialized,
+    pub fn init_with_datapath_and_lang(
+        self,
+        datapath: &std::path::Path,
+        language: &str,
     ) -> TessBaseApiInitialized {
+        self.pointer.init(
+            std::ffi::CString::new(datapath.to_str().unwrap())
+                .unwrap()
+                .as_ptr(),
+            std::ffi::CString::new(language).unwrap().as_ptr(),
+        );
+        self.create_tess_base_api_initialized()
+    }
+
+    fn create_tess_base_api_initialized(self) -> TessBaseApiInitialized {
         let tess_base_api_initialized = TessBaseApiInitialized {
             pointer: TessBaseApiInitializedPointer {
-                raw: tess_base_api_uninitialized.pointer.raw,
+                raw: self.pointer.raw,
             },
         };
-        std::mem::forget(tess_base_api_uninitialized);
+        std::mem::forget(self);
         tess_base_api_initialized
     }
 }
@@ -131,7 +149,7 @@ pub enum PageIteratorLevel {
 }
 
 impl TessBaseApiImageSet {
-    pub fn set_rectangle(&self, rectangle: leptonica::Box) {
+    pub fn set_rectangle(&self, rectangle: &leptonica::Box) {
         unsafe {
             capi::TessBaseAPISetRectangle(
                 self.pointer.raw,
@@ -146,39 +164,23 @@ impl TessBaseApiImageSet {
     pub fn get_text(&self) -> String {
         unsafe {
             let sptr = capi::TessBaseAPIGetUTF8Text(self.pointer.raw);
-            let re = CStr::from_ptr(sptr).to_str().unwrap().to_string();
+            let re = std::ffi::CStr::from_ptr(sptr).to_str().unwrap().to_string();
             capi::TessDeleteText(sptr);
             return re;
         }
     }
 
-    /// Get the given level kind of components (block, textline, word etc.) as a leptonica-style
-    /// Boxa, in reading order. If text_only is true, then only text components are returned.
-    /// https://tesseract-ocr.github.io/4.0.0/a01625.html#gad74ae1266a5299734ec6f5225b6cb5c1
-    pub fn get_component_images(
-        &self,
-        level: PageIteratorLevel,
-        text_only: bool,
-    ) -> leptonica::Boxes {
-        unsafe {
-            let boxes = capi::TessBaseAPIGetComponentImages(
-                self.pointer.raw,
-                match level {
-                    PageIteratorLevel::Block => capi::TessPageIteratorLevel_RIL_BLOCK,
-                    PageIteratorLevel::Para => capi::TessPageIteratorLevel_RIL_PARA,
-                    PageIteratorLevel::Textline => capi::TessPageIteratorLevel_RIL_TEXTLINE,
-                    PageIteratorLevel::Word => capi::TessPageIteratorLevel_RIL_WORD,
-                    PageIteratorLevel::Symbol => capi::TessPageIteratorLevel_RIL_SYMBOL,
-                },
-                if text_only { 1 } else { 0 },
-                ptr::null_mut(),
-                ptr::null_mut(),
-            );
-
-            if boxes.is_null() {
-                unreachable!();
-            }
-            return leptonica::Boxes { raw: boxes };
+    pub fn get_textlines(&self, text_only: bool) -> leptonica::Boxes {
+        leptonica::Boxes {
+            raw: unsafe {
+                capi::TessBaseAPIGetComponentImages(
+                    self.pointer.raw,
+                    capi::TessPageIteratorLevel_RIL_TEXTLINE,
+                    if text_only { 1 } else { 0 },
+                    std::ptr::null_mut(),
+                    std::ptr::null_mut(),
+                )
+            },
         }
     }
 }

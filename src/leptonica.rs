@@ -1,32 +1,106 @@
 use super::capi;
 
-use std::ffi::CString;
-use std::path::Path;
-
 pub struct Pix {
     pub raw: *mut capi::Pix,
 }
 
+pub enum FileFormat {
+    Unknown,
+    Bmp,
+    JfifJpeg,
+    Png,
+    Tiff,
+    TiffPackbits,
+    TiffRle,
+    TiffG3,
+    TiffG4,
+    TiffLzw,
+    TiffZip,
+    Pnm,
+    Ps,
+    Gif,
+    Jp2,
+    Webp,
+    Lpdf,
+    TiffJpeg,
+    Default,
+    Spix,
+}
+
+impl FileFormat {
+    // https://github.com/DanBloomberg/leptonica/blob/95405007f7ebf7df69f13475b3259179cdc4ec12/src/imageio.h#L91
+    fn to_int(&self) -> i32 {
+        match self {
+            FileFormat::Unknown => 0,
+            FileFormat::Bmp => 1,
+            FileFormat::JfifJpeg => 2,
+            FileFormat::Png => 3,
+            FileFormat::Tiff => 4,
+            FileFormat::TiffPackbits => 5,
+            FileFormat::TiffRle => 6,
+            FileFormat::TiffG3 => 7,
+            FileFormat::TiffG4 => 8,
+            FileFormat::TiffLzw => 9,
+            FileFormat::TiffZip => 10,
+            FileFormat::Pnm => 11,
+            FileFormat::Ps => 12,
+            FileFormat::Gif => 13,
+            FileFormat::Jp2 => 14,
+            FileFormat::Webp => 15,
+            FileFormat::Lpdf => 16,
+            FileFormat::TiffJpeg => 17,
+            FileFormat::Default => 18,
+            FileFormat::Spix => 19,
+        }
+    }
+}
+
 impl Pix {
     // TODO: read from std::fs::File
-    pub fn from_path(path: &Path) -> Pix {
-        let s = path.to_str().unwrap();
-
-        unsafe {
-            let pix = capi::pixRead(CString::new(s).unwrap().as_ptr());
-            if pix.is_null() {
-                panic!("Invalid file");
-            }
-
-            return Pix { raw: pix };
+    pub fn from_path(path: &std::path::Path) -> Pix {
+        Pix {
+            raw: unsafe {
+                let pix = capi::pixRead(
+                    std::ffi::CString::new(path.to_str().unwrap())
+                        .unwrap()
+                        .as_ptr(),
+                );
+                if pix.is_null() {
+                    panic!("Invalid file");
+                }
+                pix
+            },
         }
     }
 
-    pub fn get_w(&self) -> u32 {
-        unsafe { (*self.raw).w }
+    pub fn clip(&self, rectangle: &Box) -> Self {
+        Pix {
+            raw: unsafe {
+                let pix = capi::pixClipRectangle(self.raw, rectangle.raw, std::ptr::null_mut());
+                if pix.is_null() {
+                    panic!("pixClipRectangle returned NULL");
+                }
+                pix
+            },
+        }
     }
-    pub fn get_h(&self) -> u32 {
-        unsafe { (*self.raw).h }
+
+    // TODO: what to ask for, a &str, path or file?
+    pub fn write(&self, path: &std::path::Path, format: FileFormat) -> Result<(), ()> {
+        if unsafe {
+            // https://github.com/DanBloomberg/leptonica/blob/95405007f7ebf7df69f13475b3259179cdc4ec12/src/writefile.c#L341
+            capi::pixWrite(
+                std::ffi::CString::new(path.to_str().unwrap())
+                    .unwrap()
+                    .as_ptr(),
+                self.raw,
+                format.to_int(),
+            ) == 0
+        } {
+            Ok(())
+        } else {
+            Err(())
+        }
     }
 }
 
@@ -57,15 +131,15 @@ impl Box {
     }
     /// The y position of the box
     pub fn y(&self) -> i32 {
-        unsafe { (*self.raw).x }
+        unsafe { (*self.raw).y }
     }
     /// The width of the box
     pub fn w(&self) -> i32 {
-        unsafe { (*self.raw).x }
+        unsafe { (*self.raw).w }
     }
     /// The height of the box
     pub fn h(&self) -> i32 {
-        unsafe { (*self.raw).x }
+        unsafe { (*self.raw).h }
     }
 }
 
