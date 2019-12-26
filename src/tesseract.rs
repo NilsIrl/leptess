@@ -3,12 +3,6 @@
 use super::capi;
 use super::leptonica;
 
-use std::ffi::CStr;
-use std::ptr;
-
-pub use capi::kMaxCredibleResolution as MAX_CREDIBLE_RESOLUTION;
-pub use capi::kMinCredibleResolution as MIN_CREDIBLE_RESOLUTION;
-
 #[derive(Debug, PartialEq)]
 pub struct TessInitError {
     pub code: i32,
@@ -20,82 +14,111 @@ impl std::fmt::Display for TessInitError {
     }
 }
 
-#[derive(Debug, PartialEq)]
-pub struct TessApi {
-    pub raw: *mut capi::TessBaseAPI,
+struct TessBaseApiUninitializedPointer {
+    raw: *mut capi::TessBaseAPI,
 }
 
-pub struct TessApiImageSet {
-    pub raw: *mut capi::TessBaseAPI,
+struct TessBaseApiInitializedPointer {
+    raw: *mut capi::TessBaseAPI,
 }
 
-impl Drop for TessApi {
-    fn drop(&mut self) {
-        unsafe {
-            capi::TessBaseAPIEnd(self.raw);
-            capi::TessBaseAPIDelete(self.raw);
-        }
-    }
-}
-
-impl Drop for TessApiImageSet {
-    fn drop(&mut self) {
-        unsafe {
-            capi::TessBaseAPIEnd(self.raw);
-            capi::TessBaseAPIDelete(self.raw);
-        }
-    }
-}
-
-impl TessApi {
-    pub fn new() -> Result<TessApi, TessInitError> {
-        let api = TessApi {
+impl TessBaseApiUninitializedPointer {
+    fn new() -> TessBaseApiUninitializedPointer {
+        TessBaseApiUninitializedPointer {
             raw: unsafe { capi::TessBaseAPICreate() },
+        }
+    }
+}
+
+impl Drop for TessBaseApiUninitializedPointer {
+    fn drop(&mut self) {
+        unsafe {
+            capi::TessBaseAPIDelete(self.raw);
+        }
+    }
+}
+
+impl Drop for TessBaseApiInitializedPointer {
+    fn drop(&mut self) {
+        unsafe {
+            capi::TessBaseAPIEnd(self.raw);
+            capi::TessBaseAPIDelete(self.raw);
+        }
+    }
+}
+
+pub struct TessBaseApiUnitialized {
+    pointer: TessBaseApiUninitializedPointer,
+}
+
+pub struct TessBaseApiInitialized {
+    pointer: TessBaseApiInitializedPointer,
+}
+
+pub struct TessBaseApiImageSet {
+    pointer: TessBaseApiInitializedPointer,
+}
+
+impl TessBaseApiUnitialized {
+    pub fn new() -> TessBaseApiUnitialized {
+        TessBaseApiUnitialized {
+            pointer: TessBaseApiUninitializedPointer::new(),
+        }
+    }
+
+    pub fn init(self) -> TessBaseApiInitialized {
+        unsafe {
+            capi::TessBaseAPIInit3(self.pointer.raw, std::ptr::null(), std::ptr::null());
+        }
+        Self::create_tess_base_api_initialized(self)
+    }
+
+    pub fn init_with_lang(self, language: &str) -> TessBaseApiInitialized {
+        unsafe {
+            capi::TessBaseAPIInit3(
+                self.pointer.raw,
+                std::ptr::null(),
+                std::ffi::CString::new(language).unwrap().as_ptr(),
+            );
+        }
+        Self::create_tess_base_api_initialized(self)
+    }
+
+    pub fn init_with_datapath(self, datapath: std::path::Path) -> TessBaseApiInitialized {
+        unsafe {
+            capi::TessBaseAPIInit3(
+                self.pointer.raw,
+                std::ffi::CString::new(datapath.to_str().unwrap()).as_ptr(),
+                std::ptr::null(),
+            );
+        }
+        Self::create_tess_base_api_initialized(self)
+    }
+
+    fn create_tess_base_api_initialized(
+        tess_base_api_uninitialized: TessBaseApiUnitialized,
+    ) -> TessBaseApiInitialized {
+        let tess_base_api_initialized = TessBaseApiInitialized {
+            pointer: TessBaseApiInitializedPointer {
+                raw: tess_base_api_uninitialized.pointer.raw,
+            },
         };
-
-        unsafe {
-            let re = capi::TessBaseAPIInit3(api.raw, ptr::null(), ptr::null());
-
-            if re == 0 {
-                // TODO: https://github.com/tesseract-ocr/tesseract/issues/2832
-                return Ok(api);
-            } else {
-                return Err(TessInitError { code: re });
-            }
-        }
+        std::mem::forget(tess_base_api_uninitialized);
+        tess_base_api_initialized
     }
+}
 
-    pub fn set_image(&self, img: &leptonica::Pix) -> TessApiImageSet {
-        unsafe { capi::TessBaseAPISetImage2(self.raw, img.raw) }
-        TessApiImageSet { raw: self.raw }
-    }
-
-    pub fn get_source_y_resolution(&mut self) -> i32 {
-        unsafe { capi::TessBaseAPIGetSourceYResolution(self.raw) }
-    }
-
-    /// Override image resolution.
-    /// Can be used to suppress "Warning: Invalid resolution 0 dpi." output.
-    pub fn set_source_resolution(&mut self, res: i32) {
-        unsafe { capi::TessBaseAPISetSourceResolution(self.raw, res) }
-    }
-
-    pub fn recognize(&self) -> i32 {
-        unsafe { capi::TessBaseAPIRecognize(self.raw, ptr::null_mut()) }
-    }
-
-    pub fn mean_text_conf(&self) -> i32 {
-        unsafe { capi::TessBaseAPIMeanTextConf(self.raw) }
-    }
-
-    pub fn get_regions(&self) -> Option<leptonica::Boxes> {
-        unsafe {
-            let boxes = capi::TessBaseAPIGetRegions(self.raw, ptr::null_mut());
-            if boxes.is_null() {
-                return None;
-            }
-            return Some(leptonica::Boxes { raw: boxes });
-        }
+impl TessBaseApiInitialized {
+    /// Drops self and returns TessBaseApiImageSet signifying an image has been given
+    pub fn set_image(self, img: &leptonica::Pix) -> TessBaseApiImageSet {
+        unsafe { capi::TessBaseAPISetImage2(self.pointer.raw, img.raw) }
+        let tess_api_image_set = TessBaseApiImageSet {
+            pointer: TessBaseApiInitializedPointer {
+                raw: self.pointer.raw,
+            },
+        };
+        std::mem::forget(self);
+        tess_api_image_set
     }
 }
 
@@ -107,11 +130,11 @@ pub enum PageIteratorLevel {
     Symbol,
 }
 
-impl TessApiImageSet {
+impl TessBaseApiImageSet {
     pub fn set_rectangle(&self, rectangle: leptonica::Box) {
         unsafe {
             capi::TessBaseAPISetRectangle(
-                self.raw,
+                self.pointer.raw,
                 rectangle.x(),
                 rectangle.y(),
                 rectangle.w(),
@@ -122,7 +145,7 @@ impl TessApiImageSet {
 
     pub fn get_text(&self) -> String {
         unsafe {
-            let sptr = capi::TessBaseAPIGetUTF8Text(self.raw);
+            let sptr = capi::TessBaseAPIGetUTF8Text(self.pointer.raw);
             let re = CStr::from_ptr(sptr).to_str().unwrap().to_string();
             capi::TessDeleteText(sptr);
             return re;
@@ -139,7 +162,7 @@ impl TessApiImageSet {
     ) -> leptonica::Boxes {
         unsafe {
             let boxes = capi::TessBaseAPIGetComponentImages(
-                self.raw,
+                self.pointer.raw,
                 match level {
                     PageIteratorLevel::Block => capi::TessPageIteratorLevel_RIL_BLOCK,
                     PageIteratorLevel::Para => capi::TessPageIteratorLevel_RIL_PARA,
