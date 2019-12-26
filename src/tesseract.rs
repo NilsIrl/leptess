@@ -140,14 +140,6 @@ impl TessBaseApiInitialized {
     }
 }
 
-pub enum PageIteratorLevel {
-    Block,
-    Para,
-    Textline,
-    Word,
-    Symbol,
-}
-
 impl TessBaseApiImageSet {
     pub fn set_rectangle(&self, rectangle: &leptonica::Box) {
         unsafe {
@@ -170,17 +162,38 @@ impl TessBaseApiImageSet {
         }
     }
 
-    pub fn get_textlines(&self, text_only: bool) -> leptonica::Boxes {
+    // Not public cause maybe not so idiomatic
+    fn get_component_images(&self, iterator_level: u32, text_only: bool) -> leptonica::Boxes {
         leptonica::Boxes {
             raw: unsafe {
                 capi::TessBaseAPIGetComponentImages(
                     self.pointer.raw,
-                    capi::TessPageIteratorLevel_RIL_TEXTLINE,
+                    iterator_level,
                     if text_only { 1 } else { 0 },
                     std::ptr::null_mut(),
                     std::ptr::null_mut(),
                 )
             },
         }
+    }
+
+    pub fn get_blocks(&self, text_only: bool) -> leptonica::Boxes {
+        self.get_component_images(capi::TessPageIteratorLevel_RIL_BLOCK, text_only)
+    }
+
+    pub fn get_paras(&self, text_only: bool) -> leptonica::Boxes {
+        self.get_component_images(capi::TessPageIteratorLevel_RIL_PARA, text_only)
+    }
+
+    pub fn get_textlines(&self, text_only: bool) -> leptonica::Boxes {
+        self.get_component_images(capi::TessPageIteratorLevel_RIL_TEXTLINE, text_only)
+    }
+
+    pub fn get_words(&self, text_only: bool) -> leptonica::Boxes {
+        self.get_component_images(capi::TessPageIteratorLevel_RIL_WORD, text_only)
+    }
+
+    pub fn get_symbols(&self, text_only: bool) -> leptonica::Boxes {
+        self.get_component_images(capi::TessPageIteratorLevel_RIL_SYMBOL, text_only)
     }
 }

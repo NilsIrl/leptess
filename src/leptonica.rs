@@ -57,19 +57,18 @@ impl FileFormat {
 
 impl Pix {
     // TODO: read from std::fs::File
-    pub fn from_path(path: &std::path::Path) -> Pix {
-        Pix {
-            raw: unsafe {
-                let pix = capi::pixRead(
-                    std::ffi::CString::new(path.to_str().unwrap())
-                        .unwrap()
-                        .as_ptr(),
-                );
-                if pix.is_null() {
-                    panic!("Invalid file");
-                }
-                pix
-            },
+    pub fn from_path(path: &std::path::Path) -> Result<Pix, ()> {
+        let pix = unsafe {
+            capi::pixRead(
+                std::ffi::CString::new(path.to_str().unwrap())
+                    .unwrap()
+                    .as_ptr(),
+            )
+        };
+        if pix.is_null() {
+            Err(())
+        } else {
+            Ok(Pix { raw: pix })
         }
     }
 
