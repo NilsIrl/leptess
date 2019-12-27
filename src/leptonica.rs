@@ -29,6 +29,7 @@ pub enum FileFormat {
 
 impl FileFormat {
     // https://github.com/DanBloomberg/leptonica/blob/95405007f7ebf7df69f13475b3259179cdc4ec12/src/imageio.h#L91
+    // TODO: solved by https://github.com/ccouzens/leptonica-sys/pull/2
     fn to_int(&self) -> i32 {
         match self {
             FileFormat::Unknown => 0,
@@ -101,6 +102,14 @@ impl Pix {
             Err(())
         }
     }
+
+    pub fn w(&self) -> u32 {
+        unsafe { (*self.raw).w }
+    }
+
+    pub fn h(&self) -> u32 {
+        unsafe { (*self.raw).h }
+    }
 }
 
 impl Drop for Pix {
@@ -124,6 +133,15 @@ impl Drop for Box {
 }
 
 impl Box {
+    pub fn new(x: i32, y: i32, w: i32, h: i32) -> Box {
+        assert!(w > 1 || h > 1);
+        // https://tpgit.github.io/Leptonica/boxbasic_8c.html#ad846c5f00e3aaed3dd4329347acac89d
+        // Virutally impossible to get null pointer
+        Box {
+            raw: unsafe { capi::boxCreate(x, y, w, h) },
+        }
+    }
+
     /// The x position the box
     pub fn x(&self) -> i32 {
         unsafe { (*self.raw).x }
