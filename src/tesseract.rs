@@ -1,7 +1,6 @@
 //! Low level wrapper for Tesseract C API
 
-use super::capi;
-use super::leptonica;
+use crate::leptonica;
 
 #[derive(Debug, PartialEq)]
 pub struct TessInitError {
@@ -15,23 +14,23 @@ impl std::fmt::Display for TessInitError {
 }
 
 struct TessBaseApiUninitializedPointer {
-    raw: *mut capi::TessBaseAPI,
+    raw: *mut tesseract_sys::TessBaseAPI,
 }
 
 struct TessBaseApiInitializedPointer {
-    raw: *mut capi::TessBaseAPI,
+    raw: *mut tesseract_sys::TessBaseAPI,
 }
 
 impl TessBaseApiUninitializedPointer {
     fn new() -> TessBaseApiUninitializedPointer {
         TessBaseApiUninitializedPointer {
-            raw: unsafe { capi::TessBaseAPICreate() },
+            raw: unsafe { tesseract_sys::TessBaseAPICreate() },
         }
     }
 
     // Return a result instead of panicking if -1 is reachable
     fn init(&self, datapath: *const i8, language: *const i8) {
-        match unsafe { capi::TessBaseAPIInit3(self.raw, datapath, language) } {
+        match unsafe { tesseract_sys::TessBaseAPIInit3(self.raw, datapath, language) } {
             0 => (),
             -1 => panic!("Failed to initialize"),
             _ => unreachable!(),
@@ -42,7 +41,7 @@ impl TessBaseApiUninitializedPointer {
 impl Drop for TessBaseApiUninitializedPointer {
     fn drop(&mut self) {
         unsafe {
-            capi::TessBaseAPIDelete(self.raw);
+            tesseract_sys::TessBaseAPIDelete(self.raw);
         }
     }
 }
@@ -50,8 +49,8 @@ impl Drop for TessBaseApiUninitializedPointer {
 impl Drop for TessBaseApiInitializedPointer {
     fn drop(&mut self) {
         unsafe {
-            capi::TessBaseAPIEnd(self.raw);
-            capi::TessBaseAPIDelete(self.raw);
+            tesseract_sys::TessBaseAPIEnd(self.raw);
+            tesseract_sys::TessBaseAPIDelete(self.raw);
         }
     }
 }
@@ -90,7 +89,7 @@ impl TessBaseApiUnitialized {
 
     pub fn init_with_datapath(self, datapath: &std::path::Path) -> TessBaseApiInitialized {
         unsafe {
-            capi::TessBaseAPIInit3(
+            tesseract_sys::TessBaseAPIInit3(
                 self.pointer.raw,
                 std::ffi::CString::new(datapath.to_str().unwrap())
                     .unwrap()
@@ -129,7 +128,7 @@ impl TessBaseApiUnitialized {
 impl TessBaseApiInitialized {
     /// Drops self and returns TessBaseApiImageSet signifying an image has been given
     pub fn set_image(self, img: &leptonica::Pix) -> TessBaseApiImageSet {
-        unsafe { capi::TessBaseAPISetImage2(self.pointer.raw, img.raw) }
+        unsafe { tesseract_sys::TessBaseAPISetImage2(self.pointer.raw, img.raw) }
         let tess_api_image_set = TessBaseApiImageSet {
             pointer: TessBaseApiInitializedPointer {
                 raw: self.pointer.raw,
@@ -143,7 +142,7 @@ impl TessBaseApiInitialized {
 impl TessBaseApiImageSet {
     pub fn set_rectangle(&self, rectangle: &leptonica::Box) {
         unsafe {
-            capi::TessBaseAPISetRectangle(
+            tesseract_sys::TessBaseAPISetRectangle(
                 self.pointer.raw,
                 rectangle.x(),
                 rectangle.y(),
@@ -155,9 +154,9 @@ impl TessBaseApiImageSet {
 
     pub fn get_text(&self) -> String {
         unsafe {
-            let sptr = capi::TessBaseAPIGetUTF8Text(self.pointer.raw);
+            let sptr = tesseract_sys::TessBaseAPIGetUTF8Text(self.pointer.raw);
             let re = std::ffi::CStr::from_ptr(sptr).to_str().unwrap().to_string();
-            capi::TessDeleteText(sptr);
+            tesseract_sys::TessDeleteText(sptr);
             return re;
         }
     }
@@ -166,7 +165,7 @@ impl TessBaseApiImageSet {
     fn get_component_images(&self, iterator_level: u32, text_only: bool) -> leptonica::Boxes {
         leptonica::Boxes {
             raw: unsafe {
-                capi::TessBaseAPIGetComponentImages(
+                tesseract_sys::TessBaseAPIGetComponentImages(
                     self.pointer.raw,
                     iterator_level,
                     if text_only { 1 } else { 0 },
@@ -178,22 +177,22 @@ impl TessBaseApiImageSet {
     }
 
     pub fn get_blocks(&self, text_only: bool) -> leptonica::Boxes {
-        self.get_component_images(capi::TessPageIteratorLevel_RIL_BLOCK, text_only)
+        self.get_component_images(tesseract_sys::TessPageIteratorLevel_RIL_BLOCK, text_only)
     }
 
     pub fn get_paras(&self, text_only: bool) -> leptonica::Boxes {
-        self.get_component_images(capi::TessPageIteratorLevel_RIL_PARA, text_only)
+        self.get_component_images(tesseract_sys::TessPageIteratorLevel_RIL_PARA, text_only)
     }
 
     pub fn get_textlines(&self, text_only: bool) -> leptonica::Boxes {
-        self.get_component_images(capi::TessPageIteratorLevel_RIL_TEXTLINE, text_only)
+        self.get_component_images(tesseract_sys::TessPageIteratorLevel_RIL_TEXTLINE, text_only)
     }
 
     pub fn get_words(&self, text_only: bool) -> leptonica::Boxes {
-        self.get_component_images(capi::TessPageIteratorLevel_RIL_WORD, text_only)
+        self.get_component_images(tesseract_sys::TessPageIteratorLevel_RIL_WORD, text_only)
     }
 
     pub fn get_symbols(&self, text_only: bool) -> leptonica::Boxes {
-        self.get_component_images(capi::TessPageIteratorLevel_RIL_SYMBOL, text_only)
+        self.get_component_images(tesseract_sys::TessPageIteratorLevel_RIL_SYMBOL, text_only)
     }
 }

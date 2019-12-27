@@ -1,7 +1,5 @@
-use super::capi;
-
 pub struct Pix {
-    pub raw: *mut capi::Pix,
+    pub raw: *mut leptonica_sys::Pix,
 }
 
 pub enum FileFormat {
@@ -60,7 +58,7 @@ impl Pix {
     // TODO: read from std::fs::File
     pub fn from_path(path: &std::path::Path) -> Result<Pix, ()> {
         let pix = unsafe {
-            capi::pixRead(
+            leptonica_sys::pixRead(
                 std::ffi::CString::new(path.to_str().unwrap())
                     .unwrap()
                     .as_ptr(),
@@ -76,7 +74,8 @@ impl Pix {
     pub fn clip(&self, rectangle: &Box) -> Self {
         Pix {
             raw: unsafe {
-                let pix = capi::pixClipRectangle(self.raw, rectangle.raw, std::ptr::null_mut());
+                let pix =
+                    leptonica_sys::pixClipRectangle(self.raw, rectangle.raw, std::ptr::null_mut());
                 if pix.is_null() {
                     panic!("pixClipRectangle returned NULL");
                 }
@@ -89,7 +88,7 @@ impl Pix {
     pub fn write(&self, path: &std::path::Path, format: FileFormat) -> Result<(), ()> {
         if unsafe {
             // https://github.com/DanBloomberg/leptonica/blob/95405007f7ebf7df69f13475b3259179cdc4ec12/src/writefile.c#L341
-            capi::pixWrite(
+            leptonica_sys::pixWrite(
                 std::ffi::CString::new(path.to_str().unwrap())
                     .unwrap()
                     .as_ptr(),
@@ -115,19 +114,19 @@ impl Pix {
 impl Drop for Pix {
     fn drop(&mut self) {
         unsafe {
-            capi::pixDestroy(&mut self.raw);
+            leptonica_sys::pixDestroy(&mut self.raw);
         }
     }
 }
 
 pub struct Box {
-    pub raw: *mut capi::Box,
+    pub raw: *mut leptonica_sys::Box,
 }
 
 impl Drop for Box {
     fn drop(&mut self) {
         unsafe {
-            capi::boxDestroy(&mut self.raw);
+            leptonica_sys::boxDestroy(&mut self.raw);
         }
     }
 }
@@ -138,7 +137,7 @@ impl Box {
         // https://tpgit.github.io/Leptonica/boxbasic_8c.html#ad846c5f00e3aaed3dd4329347acac89d
         // Virutally impossible to get null pointer
         Box {
-            raw: unsafe { capi::boxCreate(x, y, w, h) },
+            raw: unsafe { leptonica_sys::boxCreate(x, y, w, h) },
         }
     }
 
@@ -161,13 +160,13 @@ impl Box {
 }
 
 pub struct Boxes {
-    pub raw: *mut capi::Boxa,
+    pub raw: *mut leptonica_sys::Boxa,
 }
 
 impl Drop for Boxes {
     fn drop(&mut self) {
         unsafe {
-            capi::boxaDestroy(&mut self.raw);
+            leptonica_sys::boxaDestroy(&mut self.raw);
         }
     }
 }
@@ -180,7 +179,8 @@ impl Boxes {
 
     pub fn get(&self, index: usize) -> Box {
         unsafe {
-            let b = capi::boxaGetBox(self.raw, index as i32, capi::L_CLONE as i32);
+            let b =
+                leptonica_sys::boxaGetBox(self.raw, index as i32, leptonica_sys::L_CLONE as i32);
             if b.is_null() {
                 panic!("Found null box");
             }
