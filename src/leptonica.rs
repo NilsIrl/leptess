@@ -29,28 +29,31 @@ impl FileFormat {
     // https://github.com/DanBloomberg/leptonica/blob/95405007f7ebf7df69f13475b3259179cdc4ec12/src/imageio.h#L91
     // TODO: solved by https://github.com/ccouzens/leptonica-sys/pull/2
     fn to_int(&self) -> i32 {
+        use std::convert::TryInto;
         match self {
-            FileFormat::Unknown => 0,
-            FileFormat::Bmp => 1,
-            FileFormat::JfifJpeg => 2,
-            FileFormat::Png => 3,
-            FileFormat::Tiff => 4,
-            FileFormat::TiffPackbits => 5,
-            FileFormat::TiffRle => 6,
-            FileFormat::TiffG3 => 7,
-            FileFormat::TiffG4 => 8,
-            FileFormat::TiffLzw => 9,
-            FileFormat::TiffZip => 10,
-            FileFormat::Pnm => 11,
-            FileFormat::Ps => 12,
-            FileFormat::Gif => 13,
-            FileFormat::Jp2 => 14,
-            FileFormat::Webp => 15,
-            FileFormat::Lpdf => 16,
-            FileFormat::TiffJpeg => 17,
-            FileFormat::Default => 18,
-            FileFormat::Spix => 19,
+            FileFormat::Unknown => leptonica_sys::IFF_UNKNOWN,
+            FileFormat::Bmp => leptonica_sys::IFF_BMP,
+            FileFormat::JfifJpeg => leptonica_sys::IFF_JFIF_JPEG,
+            FileFormat::Png => leptonica_sys::IFF_PNG,
+            FileFormat::Tiff => leptonica_sys::IFF_TIFF,
+            FileFormat::TiffPackbits => leptonica_sys::IFF_TIFF_PACKBITS,
+            FileFormat::TiffRle => leptonica_sys::IFF_TIFF_RLE,
+            FileFormat::TiffG3 => leptonica_sys::IFF_TIFF_G3,
+            FileFormat::TiffG4 => leptonica_sys::IFF_TIFF_G4,
+            FileFormat::TiffLzw => leptonica_sys::IFF_TIFF_LZW,
+            FileFormat::TiffZip => leptonica_sys::IFF_TIFF_ZIP,
+            FileFormat::Pnm => leptonica_sys::IFF_PNM,
+            FileFormat::Ps => leptonica_sys::IFF_PS,
+            FileFormat::Gif => leptonica_sys::IFF_GIF,
+            FileFormat::Jp2 => leptonica_sys::IFF_JP2,
+            FileFormat::Webp => leptonica_sys::IFF_WEBP,
+            FileFormat::Lpdf => leptonica_sys::IFF_LPDF,
+            FileFormat::TiffJpeg => leptonica_sys::IFF_TIFF_JPEG,
+            FileFormat::Default => leptonica_sys::IFF_DEFAULT,
+            FileFormat::Spix => leptonica_sys::IFF_SPIX,
         }
+        .try_into()
+        .unwrap()
     }
 }
 
@@ -73,9 +76,10 @@ impl Pix {
 
     pub fn clip(&self, rectangle: &Box) -> Self {
         Pix {
-            raw: unsafe {
-                let pix =
-                    leptonica_sys::pixClipRectangle(self.raw, rectangle.raw, std::ptr::null_mut());
+            raw: {
+                let pix = unsafe {
+                    leptonica_sys::pixClipRectangle(self.raw, rectangle.raw, std::ptr::null_mut())
+                };
                 if pix.is_null() {
                     panic!("pixClipRectangle returned NULL");
                 }
